@@ -3,6 +3,9 @@
 //this is google api files
 require_once 'vendor/autoload.php';
 
+//session_name('RSGCRequest');
+//session_start();
+
 //credentials for oauth with service without domain authority (where I assume the calendars have been shared with the service.  in other words it is the same as domain authority but will fail if calendar is not there whereas the other will not)
 define('TEST_SERVICE_ACCOUNT_EMAIL', '1324354657687-13243546576879807968ahsjdkfury46@developer.gserviceaccount.com');
 define('TEST_SERVICE_ACCOUNT_PKCS12_FILE_PATH', 'C:\location\My Project-ahsg3647ehdg.p12');
@@ -12,17 +15,17 @@ define('DEBUG_MODE', false);
 define('OFFLINE_MODE', false);
 define('SERVICE_MODE', true);
 define('USE_FILE_REQUESTS', false);
-define('TEST_REQUEST_FILE', 'testRequest.xml');
+define('TEST_REQUEST_FILE', './testRequest.xml');
 
 if (!defined('OOP')) {
 	//procedural style.  File will run automatically.  To turn off (so you can call the functions outside of this file) define OOP in parent file
-	RequestHandler::HandleRequest();
+	echo RequestHandler::HandleRequest();
 }
 
 class RequestHandler {
 
 	static function HandleRequest() {
-		if (isset($_SERVER)) {
+		if (isset($_SERVER['REQUEST_METHOD'])) {
 			switch($_SERVER['REQUEST_METHOD']) {
 			//requirements are for parsing the url, so must be GET requests
 			case 'GET': 
@@ -95,8 +98,10 @@ class RequestHandler {
 				//not good.  Don't handle request
 				return '<error>bad request</error>';
 			}
+		} else {
+		   return '<error>_SERVER not set</error>';
 		}
-		return '<error>_SERVER not set</error>';
+		return 'OK';
 	}
 
 }
@@ -122,7 +127,7 @@ class ServiceBuilder {
 		$serviceAccountEmail,
 		array($serviceString),
 		$key);
-		$auth->sub = $userEmail;
+		//$auth->sub = $userEmail;
 		$client->setAssertionCredentials($auth);
 		
 		if ($client->getAuth()->isAccessTokenExpired()) {
@@ -146,39 +151,6 @@ class Services {
 		return 0; //Return 0 if there is no overlap
 	}
 }
-
-abstract class BasicEnum {
-	private static $constCacheArray = NULL;
-
-	private static function getConstants() {
-		if (self::$constCacheArray == NULL) {
-			self::$constCacheArray = [];
-		}
-		$calledClass = get_called_class();
-		if (!array_key_exists($calledClass, self::$constCacheArray)) {
-			$reflect = new ReflectionClass($calledClass);
-			self::$constCacheArray[$calledClass] = $reflect->getConstants();
-		}
-		return self::$constCacheArray[$calledClass];
-	}
-
-	public static function isValidName($name, $strict = false) {
-		$constants = self::getConstants();
-
-		if ($strict) {
-			return array_key_exists($name, $constants);
-		}
-
-		$keys = array_map('strtolower', array_keys($constants));
-		return in_array(strtolower($name), $keys);
-	}
-
-	public static function isValidValue($value) {
-		$values = array_values(self::getConstants());
-		return in_array($value, $values, $strict = true);
-	}
-}
-
 
 class ParsingException extends Exception
 {
@@ -382,10 +354,36 @@ class RSGCRequestParser {
 		$resource->setColor((string)$xmlDoc->color);
 		} else {
 		throw new ParsingException('invalid color set');
-		}	*/	
+		}	*/				
+			
+			if ($request->getRequestType() != RequestType::ALLOCATE && count($xmlDoc->description) > 0) {
+			   throw new ParsingException('description only allowed on allocate requests');
+			}
+			
+			if (count($xmlDoc->description) > 1) {
+			   throw new ParsingException('only one description tag allowed per allocate request');
+			}									
+			
+			//I will allow an empty description or no description at all for allocate requests
+			if (count($xmlDoc->description) > 0) {
+			   $resource->setDescription(filter_var($xmlDoc->description, FILTER_SANITIZE_STRING));
+			}
 			
 			if ($request->getRequestType() == RequestType::ALLOCATE && count($xmlDoc->date) != count($xmlDoc->duration)) {
 				throw new ParsingException('uneven matching of dates to durations for an allocate request.  That is not allowed');
+			}
+			
+			if ($request->getRequestType() != RequestType::ALLOCATE && count($xmlDoc->location) > 0) {
+			   throw new ParsingException('location only allowed on allocate requests');
+			}
+			
+			if (count($xmlDoc->location) > 1) {
+			   throw new ParsingException('only one location tag allowed per allocate request');
+			}
+			
+			//I will allow an empty location or no location at all for allocate requests
+			if (count($xmlDoc->location) > 0) {
+			   $resource->setLocation(filter_var($xmlDoc->location, FILTER_SANITIZE_STRING));
 			}
 			
 			//for now only allow one date for initDate, allocate, and free per request
@@ -406,8 +404,12 @@ class RSGCRequestParser {
 				//do nothing
 				break;
 			}
+			
+			if ($request->getRequestType() != RequestType::ALLOCATE && count($xmlDoc->duration) > 0) {
+			   throw new ParsingException('duration only allowed on allocate requests');
+			}
 			//for now only allow one duration
-			if ($request->getRequestType() == RequestType::ALLOCATE && count($xmlDoc->duration) > 1) {
+			if (count($xmlDoc->duration) > 1) {
 				throw new ParsingException('only one duration is allowed per allocate request');
 			}
 			
@@ -509,14 +511,20 @@ class RSGCRequestParser {
 				//this code block added to support only two dates (start and end) for date range initBlock, instead of original way 
 				//it was programmed which is date...date..date... as specified in requirements
 				if ($request->getRequestType() == RequestType::INIT_BLOCK && $count == 2) {
-					//check to see if end date is after start date				 
-					if ($request->getResourceList()[0]->getStartDate() >= $tempResource->getStartDate()) {
+					//check to see if end date is after start date	
+                    $resourceList = $request->getResourceList();					
+					$resource1 = $resourceList[0];
+					if ($resource1->getStartDate() >= $tempResource->getStartDate()) {
 						throw new ParsingException('end of date range is before start of date range');
 					}
 					//loop through all dates in between start date and end date and add data for them
-					$difference = $request->getResourceList()[0]->getStartDate()->diff($tempResource->getStartDate());
+					$difference = $resource1->getStartDate()->diff($tempResource->getStartDate());
+					
 					for ($dayCount = 1; $dayCount < $difference->d; $dayCount++) {
-						$tempStartDate = clone $request->getResourceList()[0]->getStartDate();
+						$tempResourceList = $request->getResourceList();
+						$tempResource3 = $tempResourceList[0];
+						$tempStartDate = clone $tempResource3->getStartDate();
+
 						//set time to 7:30
 						$tempStartDate->setTime(7, 30);
 						$tempStartDate->add(new DateInterval('P'.$dayCount.'D'));
@@ -524,7 +532,7 @@ class RSGCRequestParser {
 						//add 30M
 						$tempEndDate = clone $tempStartDate;
 						$tempEndDate->add(new DateInterval('PT30M'));
-						$tempTempResource = clone $tempResource;
+						$tempTempResource = clone $tempResource3;
 						
 						$tempTempResource->setEmail(''); //overwrite email to be nothing
 						$tempTempResource->setColor('0'); //default to 0 for now, which means inherit from the calendar color
@@ -536,7 +544,7 @@ class RSGCRequestParser {
 						$tempEndDate2 = clone $tempStartDate2;
 						$tempEndDate2->add(new DateInterval('PT12H'));
 						
-						$tempTempResource2 = clone $tempResource;
+						$tempTempResource2 = clone $tempResource3;
 						$tempTempResource2->setColor('8'); //gray
 						$tempTempResource2->setEmail(''); //override to be nothing
 						$tempTempResource2->setStartDate($tempStartDate2);
@@ -564,7 +572,7 @@ class RSGCRequestParser {
 
 };
 
-class RequestType extends BasicEnum {
+class RequestType {
 	const __default = self::NONE;
 
 	const NONE = 0;
@@ -593,6 +601,8 @@ class RSGCRequest {
 	function addResource($resource) { 
 		if (DEBUG_MODE) {
 			echo 'adding a resource to the request <br/>';
+			echo 'start date: ' . $resource->getStartDate()->format(DATE_RFC3339) . '<br/>';
+			echo 'end date: ' . $resource->getEndDate()->format(DATE_RFC3339) . '<br/>';
 		}
 		$this->_resourceList[] = $resource; 
 	}
@@ -608,15 +618,15 @@ class RSGCRequest {
 					throw new OtherException('Internal error: attempted to perform request with no resources');
 				}					
 				
-				$firstDate = $this->_resourceList[0]->getStartDate();
-				$calendarId = $this->_resourceList[0]->getName(); //just use calendar id/name from first date
+				$firstResource = $this->_resourceList[0];
+				$firstDate = $firstResource->getStartDate();
+				$calendarId = $firstResource->getName(); //just use calendar id/name from first date
 				
 				//check to see if that calendar exists
 				if (!OFFLINE_MODE) {
 					$calendarList = $service->calendarList->listCalendarList();
-					
 					$foundMatchingCalendar = false;
-					foreach ($calendarList->getItems() as $calendarListEntry) {
+					foreach ($calendarList->getItems() as $calendarListEntry) {						
 						if ($calendarListEntry->getId() == $calendarId) {
 							$foundMatchingCalendar = true;
 							break;
@@ -635,9 +645,10 @@ class RSGCRequest {
 						//get the events that overlap with the event
 						$currentEvents = $service->events->listEvents($calendarId, array('timeMin' => $firstDate->format(DATE_RFC3339), 'timeMax' => $lastDate->format(DATE_RFC3339)));
 						
-						if (!(!$currentEvents->getItems())) {
-							//assume only one event returned
-							$event = $currentEvents->getItems()[0];
+						$eventArray = $currentEvents->getItems();
+						if (!(!$eventArray)) {
+							//assume only one event returned							
+							$event = $eventArray[0];
 							
 							if ($event->getColorId() == '8') {
 								throw new OtherException('tried to free space that is already free.  Not allowed');
@@ -670,7 +681,8 @@ class RSGCRequest {
 								}
 								if (!(!$precedingEvents->getItems())) {
 									//assume only one event
-									$precedingEvent = $precedingEvents->getItems()[0];
+									$preceding = $precedingEvents->getItems();
+									$precedingEvent = $preceding[0];
 									
 									if (DEBUG_MODE) {
 										echo 'Got preceding event<br/>';
@@ -693,7 +705,8 @@ class RSGCRequest {
 								
 								if (!(!$followingEvents->getItems())) {
 									//assume only one event
-									$followingEvent = $followingEvents->getItems()[0];
+									$following = $followingEvents->getItems();
+									$followingEvent = $following[0];
 									
 									if (DEBUG_MODE) {
 										echo 'Got following event<br/>';
@@ -844,7 +857,7 @@ class RSGCRequest {
 									$service->events->update($calendarId, $item->getId(), $item);
 									
 									$eventArray = array(
-									//  'summary' => (string)$item->getSummary(),
+									//  'summary' => $item->getSummary(),
 									'start' => array(
 									'dateTime' => $lastDate->format(DATE_RFC3339), //format: 2015-05-28T09:00:00-07:00',
 									//	'timeZone' => 'America/Chicago',
@@ -863,9 +876,15 @@ class RSGCRequest {
 								}
 							}
 
+
 							//now add in the real event
 							$eventArray = array(
-							//   'summary' => (string)$this->_resourceList[0]->getEmail(),
+							'summary' => $firstResource->getLocation(),
+							'location' => $firstResource->getLocation(),
+							'description' => $firstResource->getDescription(),
+							'attendees' => array(
+								array('email' => $calendarId), //default to calendar id for now
+							 ),
 							'start' => array(
 							'dateTime' => $firstDate->format(DATE_RFC3339), //format: 2015-05-28T09:00:00-07:00',
 							//	'timeZone' => 'America/Chicago',
@@ -874,11 +893,22 @@ class RSGCRequest {
 							'dateTime' => $lastDate->format(DATE_RFC3339), //format: 2015-05-28T17:00:00-07:00',
 							//	'timeZone' => 'America/Chicago',
 							),
-							//'colorId' => $this->_resourceList[0]->getColor(),  DEFAULT COLOR FOR NOW TO MATCH THE CALENDAR COLOR
+							//'colorId' => $firstResource->getColor(),  DEFAULT COLOR FOR NOW TO MATCH THE CALENDAR COLOR
+							'guestsCanInviteOthers' => true,
+							'guestsCanSeeOtherGuests' => true,
+							'reminders' => array(
+								'useDefault' => false,
+								'overrides' => array(
+								  array('method' => 'email', 'minutes' => 30), //default to 30 minutes for now
+								  array('method' => 'popup', 'minutes' => 30), //default to 30 minutes for now
+								),
+							  ),
 							);
 							
+							$optionalParameters = array('sendNotifications' => true);
+							
 							$event = new Google_Service_Calendar_Event($eventArray);
-							$service->events->insert($calendarId, $event);	
+							$service->events->insert($calendarId, $event, $optionalParameters);	
 							if (DEBUG_MODE) {
 								printf('Event added: %s<br/>', $event->htmlLink);								
 							}
@@ -915,7 +945,7 @@ class RSGCRequest {
 						foreach ($this->_resourceList as $resource) {
 							
 							$eventArray = array(
-							//  'summary' => (string)$resource->getEmail(),
+							//  'summary' => $resource->getEmail(),
 							'location' => '',
 							'description' => '',
 							'start' => array(
@@ -963,6 +993,8 @@ class ResourceType {
 		$this->_name = '';
 		$this->_color = '';
 		$this->_email = '';
+		$this->_description = '';
+		$this->_location = '';
 	}
 
 	function __destruct() { }
@@ -977,6 +1009,10 @@ class ResourceType {
 	public function setStartDate($startDate) { $this->_startDate = $startDate; }
 	public function getEndDate() { return $this->_endDate; }
 	public function setEndDate($endDate) { $this->_endDate = $endDate; }
+	public function getDescription() { return $this->_description; }
+	public function setDescription($description) { $this->_description = $description; }
+	public function setLocation($location) { $this->_location = $location; }
+	public function getLocation() { return $this->_location; }
 	
 	private $_startDate; //date that action is operating on.  Only support one day for now
 	private $_endDate; //end date that action is operating on.  Only support one day for now
@@ -985,4 +1021,6 @@ class ResourceType {
 	private $_name; //name of resource.  i.e. calendar id
 	private $_color; //color of resource  -- //through experimentation determined that these are the colors: 0 - none, 1 - blue, 2 - green, 3 - purple, 4 - red, 5 - yellow, 6 - orange, 7 - turquoise, 8 - gray, 9 - bold blue, 10 - bold green, 11 - bold red
 	private $_email; //email address of user
+	private $_description; //description of event - used for description field on allocated (real) events
+	private $_location; //location of event - used for title and location fields on allocated (real) events
 };

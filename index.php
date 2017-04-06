@@ -1,7 +1,10 @@
 <?php
 
 define('OOP', true);
+define('USE_FILE_REQUESTS', true);
 
 require_once 'Scheduler.php';
 
-RequestHandler::HandleRequest();
+$return = RequestHandler::HandleRequest();
+
+echo $return . '<br/>';

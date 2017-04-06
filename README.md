@@ -1,18 +1,24 @@
-README:
+Google Calendar scheduler service rel 2.0
 
-Google Calendar Scheduler
+Requires php 5.3+ and google php service api version 1.1.1+
+
+README:
 
 There are multiple ways for you to run this code.  Either:
 
 1. include the file in another php file (it will then run automatically, procedural style)
 2. define OOP (define('OOP', true)) and then include the file and then call RequestHandler::HandleRequest() (OO style) (see index.php as example)
-3. call the file directly like in the browser (localhost://Scheduler.php?<xml> (it will run automatically, procedural style)
+3. call the file directly like in the browser (localhost://RSGCRequest.php?<xml> (it will run automatically, procedural style)
+
+When OOP is not defined, the php file will run in procedural style.  This is preferable for things like AJAX requests.  (see index.html as example of ajax request)
+When sending an ajax GET request (all requests must be GET requests for it to work) the code will return 'OK' if successful.  
+Otherwise will return error string with error enclosed in xml tags '<error> </error>'
 
 You can either put the xml into the url at the end or turn on the USE_FILE_REQUESTS and load an xml file instead.  Defaulted to read from the url currently
 
 You will need to define TEST_SERVICE_ACCOUNT_EMAIL and TEST_SERVICE_ACCOUNT_PKCS12_FILE_PATH for the system to work (see info below about defines)
 
-The defines at the top of the file are important (these are fake in this readme):
+The defines at the top of the file are important:
 
 define('TEST_SERVICE_ACCOUNT_EMAIL', '1324354657687-13243546576879807968ahsjdkfury46@developer.gserviceaccount.com');
 This is the service account that must be set up to be able to access the google api
@@ -33,11 +39,13 @@ define('SERVICE_MODE', true);
 When set to true whis will allow system to build service object for accessing google service
 
 define('USE_FILE_REQUESTS', false);
-When set to true this will cause the system to parse the request from an xml file instead of the uri
+When set to true this will cause the system to parse the request from an xml file instead of the uri.  (This is commented out because it is set in the index.php file currently)
 
 define('TEST_REQUEST_FILE', 'testRequest.xml');
 This is the file path on your server to the xml file that is to be parsed when performing a request
 
+
+Note: when not using test request files (using either AJAX or url directly) the uri should be encoded beforehand
 
 - All requests should (but not required) be contained inside a <request> </request> tag
 - the supported tag types are as follows:
@@ -46,6 +54,8 @@ This is the file path on your server to the xml file that is to be parsed when p
 	- <name>
 	- <date>
 	- <duration>
+	- <location>
+	- <description>
 
 -<type> tags are to identify the request type.  The following request types are allowed:
 	- initDate
@@ -89,8 +99,22 @@ This is the file path on your server to the xml file that is to be parsed when p
 - for allocation and freeing, only a date with a time between 8AM-8PM is allowed, otherwise the system will return an error
 
 - allocation must have only one <date> </date> tag and it is required
+
 - allocation must have only one <duration> </duration> tag and it is required.  It is in a unit of minutes
+
+- duration tag can only be on an allocate request
+
 - if the duration makes an event go past 8pm it is an invalid event and the system will return an error
+
+- allocation requests optionally can have a single <description> </description> tag.  The contents of this tag will be put in the description field of the calendar event
+
+- description can only be on an allocate request
+
+- allocation requests optionally can have a single <location> </location> tag.  The contents of this tag will be put in the title and location fields of the calendar event
+
+- location can only be on an allocate request
+
+- when an event is created the account it was created on will get a notification about the event by default
 
 - all events should be at least 30 minutes long and any empty space between events should be at least 15 minutes long to minimize the drawing problem in google calendars.  These durations are not enforced by the api
 
@@ -119,6 +143,11 @@ global errors:
 The content of <exception> will usually be a hard-coded string from the followng lists:
 
 Parsing errors:
+- location only allowed on allocate requests
+- only one location tag allowed on allocate requests
+- duration only allowed on allocate requests
+- description only allowed on allocate requests
+- only one description tag allowed on allocate requests
 - only one request type tag allowed per request
 - invalid request type
 - empty request type
@@ -150,3 +179,43 @@ Request Processing errors:
 - dates overlap (stopping on first unallowed occurence)
 - invalid request to perform on
 - invalid service reference
+
+
+examples of requests (decoded already):
+
+initDate:
+
+<request>
+<type>initDate</type>
+<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
+<date>2015-08-30T08:00:00-04:00</date>
+</request>
+
+initBlock:
+
+<request>
+<type>initBlock</type>
+<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
+<date>2015-08-30T08:00:00-04:00</date>
+<date>2015-09-03T08:00:00-04:00</date>
+</request>
+
+allocate:
+
+<request>
+<type>allocate</type>
+<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
+<date>2015-09-22T14:00:00-04:00</date>
+<duration>60</duration>
+<location>123 Front Street</location>
+<description>The coolest thing ever</description>
+</request>
+
+free:
+
+<request>
+<type>free</type>
+<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
+<date>2015-09-22T14:00:00-04:00</date>
+</request>
+

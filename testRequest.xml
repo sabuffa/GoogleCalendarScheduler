@@ -1,6 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <request>
-<type>initDate</type>
-<name>email@gmail.com</name>
-<date>2015-08-30T08:00:00-04:00</date>
+<type>allocate</type>
+<name>123412341234@group.calendar.google.com</name>
+<date>2015-09-22T14:00:00-04:00</date>
+<duration>60</duration>
+<location>123 Front Street</location>
+<description>The coolest thing ever</description>
 </request>
