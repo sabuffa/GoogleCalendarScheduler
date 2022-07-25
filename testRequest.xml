@@ -1,8 +1,11 @@
 <request>
 <type>allocate</type>
+<jobId>v361094</jobId>
+<location>location 2</location>
+<description>blah blah</description>
+<eventType>anytime</eventType>
 <name>123412341234@group.calendar.google.com</name>
-<date>2015-09-22T14:00:00-04:00</date>
-<duration>60</duration>
-<location>123 Front Street</location>
-<description>The coolest thing ever</description>
+<date>2017-11-06 22:00:00 America/Detroit</date>
+<duration>30</duration>
+<jobticket_url>http://www.google.com/finance</jobticket_url>
 </request>

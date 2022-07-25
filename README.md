@@ -1,4 +1,4 @@
-Google Calendar scheduler service rel 2.0
+Google Calendar scheduler service
 
 Requires php 5.3+ and google php service api version 1.1.1+
 
@@ -58,16 +58,10 @@ Note: when not using test request files (using either AJAX or url directly) the 
 	- <description>
 
 -<type> tags are to identify the request type.  The following request types are allowed:
-	- initDate
-	- initBlock
 	- allocate
 	- free
 	
 - each request can have only one <type> </type> tag.  In other words, only one request type per request
-
-- initDate initializes one date on one calendar for use with the calendar system
-
-- initBlock initialized a range of dates on one calendar with the calendar system
 
 - allocate will add one event to one calendar 
 
@@ -88,23 +82,17 @@ Note: when not using test request files (using either AJAX or url directly) the 
 
 - all dates must conform to the RFC3339 standard or they will be considered invalid.  The RFC3339 standard states that each date will be of the form yyyy-mm-ddThh:mm:ss(+/-)hh:mm.  The time zone offset is required.  Time is in 24hr time (i.e. 4pm == 16:00)
 
-- if request type is initDate, allocate, or free there can only be one <date> </date> tag.  The time is required.  For initDate the time is not used so it can be set to any valid time
-
-- if request type is initBlock there must be two <date> </date> tags.  The first date must correspond to start date and the second to the end date or the system will return an error.  The start date must be before or equal to the end date.  Like initDate, the time is required but not used so it can be set to any valid time
+- if request type is allocate, or free there can only be one <date> </date> tag.  The time is required.
 
 - it is expected that all calendars being operated on by the api will be of the proper form (no empty space because of manual changes) or the system will return an error
 
 - any missing, already existing/overlapping, or dates that extend past 8PM or before 8AM found in a calendar will return an error
-
-- for allocation and freeing, only a date with a time between 8AM-8PM is allowed, otherwise the system will return an error
 
 - allocation must have only one <date> </date> tag and it is required
 
 - allocation must have only one <duration> </duration> tag and it is required.  It is in a unit of minutes
 
 - duration tag can only be on an allocate request
-
-- if the duration makes an event go past 8pm it is an invalid event and the system will return an error
 
 - allocation requests optionally can have a single <description> </description> tag.  The contents of this tag will be put in the description field of the calendar event
 
@@ -124,12 +112,6 @@ Note: when not using test request files (using either AJAX or url directly) the 
 
 - every error string will start with <error> and end with </error>, so it can be converted to xml if wanted
 
-Most errors will be returned that will start with the following:
-- Exception caught when trying to build service: <exception>
-- Exception caught when trying to parse request: <exception>
-- Failed to parse request: <exception>
-- Failed to perform request: <exception>
-- Exception caught when trying to perform request: <exception>
 
 The other errors returned are either in the following list or are system (not defined by me) errors:
 
@@ -140,65 +122,98 @@ global errors:
 - invalid request object
 - failed to build service object
 
+	Line 212: 							return $errorResult.'<error>Unable to contact calendar API because of: ' . $query . '</error>';
+	Line 249: 											return $errorResult.'<error>Failed to perform request properly: ' . $e->getMessage() . '</error>';
+	Line 255: 											return $errorResult.'<error>Google or generic exception caught when trying to perform request.  Calendar possibly changed. Exception was: ' . $e->getMessage() . '</error>';
+	Line 262: 										return $errorResult.'<error>failed to build service object.  Calendar not changed.</error>';
+	Line 269: 									return $errorResult.'<error>Exception caught when trying to build service.  Calendar not changed. Exception was: ' . $e->getMessage() . '</error>';
+	Line 276: 								return $errorResult.'<error>invalid request object. Calendar not changed.</error>';
+	Line 283: 							return $errorResult.'<error>invalid request.  Calendar not changed.</error>';
+	Line 290: 						return $errorResult.'<error>Failed to parse request.  Calendar not changed. Error: ' . $parseError->getMessage() . '</error>';
+	Line 296: 						return $errorResult.'<error>Exception caught when trying to parse request. Calendar not changed.  Exception: ' . $e->getMessage() . '</error>';
+	Line 306: 				return $errorResult.'<error>bad request from setmore.  Calendar not changed.</error>';
+	Line 313: 		   return $errorResult.'<error>_SERVER not set. Calendar not changed</error>';
+
 The content of <exception> will usually be a hard-coded string from the followng lists:
 
-Parsing errors:
-- location only allowed on allocate requests
-- only one location tag allowed on allocate requests
-- duration only allowed on allocate requests
-- description only allowed on allocate requests
-- only one description tag allowed on allocate requests
-- only one request type tag allowed per request
-- invalid request type
-- empty request type
-- one one name tag allowed per request
-- uneven matching of dates to durations for an allocate request.  That is not allowed
-- only one date is allowed per request for initDate, allocate and free requests
-- only two dates allowed for initBlock requests.  Start date and end date
-- empty date
-- invalid date format
-- no duration to match with date!
-- invalid duration specified
-- input date for allocation not within valid range of 8AM-8PM
-- input date for freeing not within valid range of 8AM-8PM
-- Invalid RequestType set! Internal error.
-- input dates overlap
-- end of date range is before start of date range
+	Line 573: 				throw new ParsingException('only one request type tag allowed per request');
+	Line 585: 						throw new ParsingException('Invalid request type');
+	Line 589: 				throw new ParsingException('Empty request type');
+	Line 593: 				throw new ParsingException('only one name tag allowed per request');
+	Line 599: 				throw new ParsingException('empty calendar name');
+	Line 604: 		throw new ParsingException('only one email tag allowed per request');
+	Line 610: 		throw new ParsingException('invalid email set');
+	Line 615: 		throw new ParsingException('only one color tag allowed per request');
+	Line 622: 		throw new ParsingException('invalid color set');
+	Line 626: 				throw new ParsingException('event type only allowed for allocate requests');
+	Line 630: 				throw new ParsingException('only one event type tag allowed per allocate request');
+	Line 645: 						throw new ParsingException('Invalid event type');
+	Line 651: 			   throw new ParsingException('description only allowed on allocate requests');
+	Line 655: 			   throw new ParsingException('only one description tag allowed per allocate request');
+	Line 664: 				throw new ParsingException('jobticket_url only allowed on allocate requests');
+	Line 668: 				throw new ParsingException('only one jobticket_url tag allowed per allocate request');
+	Line 676: 				throw new ParsingException('uneven matching of dates to durations for an allocate request.  That is not allowed');
+	Line 680: 			   throw new ParsingException('location only allowed on allocate requests');
+	Line 684: 			   throw new ParsingException('only one location tag allowed per allocate request');
+	Line 697: 						throw new ParsingException('only one date is allowed per request for allocate, and free requests');
+	Line 706: 			   throw new ParsingException('duration only allowed on allocate requests');
+	Line 710: 				throw new ParsingException('only one duration is allowed per allocate request');
+	Line 723: 					throw new ParsingException('empty date');
+	Line 730: 					throw new ParsingException('invalid date format');
+	Line 775: 						throw new ParsingException('morning event cannot have a start time in the afternoon');
+	Line 785: 						throw new ParsingException('afternoon event cannot have a start time in the morning');
+	Line 795: 						throw new ParsingException('cannot insert an event into calendar that occurs in the past.  Change your time.');
+	Line 804: 							throw new ParsingException('no duration to match with date!');
+	Line 808: 							throw new ParsingException('invalid duration specified');
+	Line 821: 								throw new OtherException('received a movable event with a start time outside normal business hours.  Internal error');
+	Line 824: 									throw new ParsingException('start time for allocation not within valid time range of ' . startOfDay()->format(DATE_RFC3339) . ' to ' . endOfDay()->format(DATE_RFC3339));
+	Line 841: 								throw new ParsingException('time for freeing not within valid time range of ' . startOfDay()->format(DATE_RFC3339) . ' to ' . endOfDay()->format(DATE_RFC3339));
+	Line 849: 						throw new ParsingException('Invalid RequestType set!  Internal Error.');
+	Line 1009: 					  throw new OtherException('algorithm failed to find an available slot for an existing event.');
+	Line 1116: 				    throw new OtherException('event trying to be added overlaps with an existing event that cannot be moved.');
+	Line 1283: 					throw new OtherException('Internal error: attempted to perform request with no resources.  Nothing was changed on calendar.');
+	Line 1312: 						throw new OtherException('no calendar found that matches the id provided.  Calendar not changed.');
+	Line 1346: 								throw new OtherException('Problem found before freeing.  Calendar not changed. More than one event found during the specified time.  This is not allowed.  Manually correct this in calendar');
+	Line 1368: 								throw new OtherException('After freeing, the event that should have been deleted in Google Calendar was not. Calendar changed.');
+	Line 1376: 							throw new OtherException('No event to be freed.  Request from setmore was bad. Calendar not changed.');
+	Line 1490: 										//in this case, continue inserting anyway, don't throw exception for now
+	Line 1521: 									throw new OtherException('After allocate, the number of events in the calendar are wrong. Calendar changed.');;
+	Line 1566: 										throw new OtherException('After allocate delete, the number of events in the calendar are wrong. Calendar changed.');;
+	Line 1595: 										throw new OtherException('After allocate delete, the event added did not match with what was tried to be added. Calendar changed.');
+	Line 1619: 							   throw new OtherException('Internal error: no events to insert.  Calendar not changed.');
+	Line 1650: 								throw new OtherException('After allocate, the event added did not match with what was tried to be added. Calendar was changed.');
+	Line 1664: 								throw new OtherException('After allocate, the event that should have been added was not added. Calendar was not changed. ');;
+	Line 1673: 							throw new OtherException('Warning: event added outside of normal business hours');
+	Line 1677: 							throw new OtherException('Unable to reschedule events during insert.  Inserted event anyways.  Calendar changed. Manual adjustment necessary.');
+	Line 1687: 				throw new OtherException('Invalid request to perform on. Calendar not changed.');
+	Line 1695: 			throw new OtherException('Invalid service reference. Calendar not changed.');
 
-Request Processing errors:
-- Internal error: attempted to perform request with no resources
-- no calendar found that matches the id provided
-- tried to free space that is already free.  Not allowed
-- Internal error: there was no event found before event trying to be freed.  This should not happen
-- there was no event found after event trying to be freed
-- attempting to free an event to time that was not initialized.  Not allowed
-- there is a conflicting event that overlaps this time allocation not allowed
-- Internal error: Found no overlap of events that are within date range
-- The events are not overlapping when they should overlap with gray space
-- attempting to add an event to time that was not initialized.  Not allowed
-- dates overlap (stopping on first unallowed occurence)
-- invalid request to perform on
-- invalid service reference
+
+
+The various logging levels are:
+//1 == debug, 2 == info, 4 == warning, 8 == error, 16 == fatal.  Max is 31.  Defaults to warning, error, and fatal logged to file.
+
+to turn logging on and off there is a variable called LOGGING_ON in the file.
+
+LOGGING_OUTPUT_FILE variable determines location of log file output
+
+A few reminders to you about how this service works:
+
+Remember that when my code cannot find a spot to insert, it will always still insert. 
+For anytime, morning, and afternoon events it will insert at 5AM.  For non movable events it will insert at the requested time, even in the case where there is already an event there.
+You get an <error> in both of these cases.  If you do not manually fix this problem after (overlapping events) then you will have problems.  And freeing events will not work anytime you try to free an event that overlaps with another event.
+
+Just to note, a less verbose form of these messages are also returned to you as a response from my service, enclosed in <error></error> tags
+
+Also, remember NEVER to overlap events in the calendar.  It wasn't designed to handle overlapping events.  The code expects only one event at any point in time (except the start and end of events can share the same time). If you have more than one it will break stuff.
+
+Also, remember that if you have morning, afternoon, or anytime events, they can and likely will be moved whenever you add a new event to a day.  So for example, even if you add a event that same day, all the other event times (that are not non-movable) will change.
+
+
 
 
 examples of requests (decoded already):
 
-initDate:
-
-<request>
-<type>initDate</type>
-<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
-<date>2015-08-30T08:00:00-04:00</date>
-</request>
-
-initBlock:
-
-<request>
-<type>initBlock</type>
-<name>8u8apg9lvs8r8gra8bcuuaj240@group.calendar.google.com</name>
-<date>2015-08-30T08:00:00-04:00</date>
-<date>2015-09-03T08:00:00-04:00</date>
-</request>
 
 allocate:
 
