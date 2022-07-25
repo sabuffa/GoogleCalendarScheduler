@@ -49,17 +49,17 @@ Note: when not using test request files (using either AJAX or url directly) the 
 
 - All requests should (but not required) be contained inside a request tag
 - the supported tag types are as follows:
-- request
-- type
-- name
-- date
-- duration 
-- location
-- description
+-- request
+-- type
+-- name
+-- date
+-- duration 
+-- location
+-- description
 
 -type tags are to identify the request type.  The following request types are allowed:
-- allocate
-- free
+-- allocate
+-- free
 	
 - each request can have only one type tag.  In other words, only one request type per request
 
